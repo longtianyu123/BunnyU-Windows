@@ -19,7 +19,7 @@ internal sealed class LoginForm : Form
     private readonly CancellationTokenSource _life=new();
     private readonly Func<DateTime> _getCooldown;
     private readonly Action<DateTime> _setCooldown;
-    private bool _busy,_sending;
+    private bool _busy,_sending,_resourcesDisposed;
     public UserSession? Session{get;private set;}
     public LoginForm(IBunnyApi api,SessionStore store,Func<DateTime> getCooldown,Action<DateTime> setCooldown)
     {
@@ -36,7 +36,7 @@ internal sealed class LoginForm : Form
         AcceptButton=_login;CancelButton=_cancel;
         _send.Click+=async(_,_)=>await SendAsync();_login.Click+=async(_,_)=>await LoginAsync();
         _timer.Tick+=(_,_)=>RefreshCooldown();_timer.Start();Shown+=(_,_)=>{_phone.Focus();RefreshCooldown();};
-        FormClosed+=(_,_)=>{_life.Cancel();_timer.Stop();_timer.Dispose();_life.Dispose();};
+        FormClosed+=(_,_)=>{_life.Cancel();_timer.Stop();};
     }
     private void Announce(string text){_message.Text=text;_message.AccessibilityObject.RaiseAutomationNotification(AutomationNotificationKind.Other,AutomationNotificationProcessing.ImportantMostRecent,text);}
     private void RefreshCooldown()
@@ -47,6 +47,12 @@ internal sealed class LoginForm : Form
         if(_send.Text!=caption)_send.Text=caption;
         if(_send.AccessibleName!=caption)_send.AccessibleName=caption;
     }
+    protected override void Dispose(bool disposing)
+    {
+        if(disposing&&!_resourcesDisposed){_resourcesDisposed=true;_timer.Dispose();_life.Cancel();_life.Dispose();}
+        base.Dispose(disposing);
+    }
+    internal (string Caption,string? Name,bool Enabled) TestCountdown(){RefreshCooldown();return(_send.Text,_send.AccessibleName,_send.Enabled);}
     private async Task SendAsync()
     {
         if(_busy||DateTime.UtcNow<_getCooldown())return;_busy=true;_sending=true;RefreshCooldown();

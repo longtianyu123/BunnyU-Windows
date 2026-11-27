@@ -22,6 +22,12 @@ internal static class FormSelfTest
             Check(form.TestResources is ListBox&&!form.TestResources.MultiColumn,"resource control is a plain single-column list box");
             using(var paging=new MainForm(["--self-test"],new PagingTestApi()))await paging.TestAutoPagingAsync(Check);
             form.TestVolumePreference(Check);
+            var cooldown=DateTime.UtcNow.AddSeconds(60);
+            using(var login=new LoginForm(form.TestApi,new BunnyU.Desktop.SessionStore(),()=>cooldown,value=>cooldown=value))
+            {
+                var first=login.TestCountdown();Check(first.Caption.Contains("秒")&&first.Caption==first.Name&&!first.Enabled,"SMS button exposes disabled countdown in text and accessible name without sending SMS");
+                cooldown=DateTime.UtcNow.AddSeconds(-1);var expired=login.TestCountdown();Check(expired.Enabled&&expired.Caption=="获取验证码"&&expired.Name==expired.Caption,"SMS countdown expiration restores original button");
+            }
             var preferencesRoot=Path.Combine(Path.GetTempPath(),"bunny-prefs-test-"+Guid.NewGuid().ToString("N"));
             try
             {

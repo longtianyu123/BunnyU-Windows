@@ -32,8 +32,14 @@ internal static class UpdateTests
         try
         {
             using var http=new HttpClient(new Handler(bytes));var updater=new AppUpdater(http,publicKey);
+            var manifestHandler=new FallbackHandler(System.Text.Encoding.UTF8.GetBytes(Manifest(url,sha)));using var manifestClient=new HttpClient(manifestHandler);
+            var found=await new AppUpdater(manifestClient,publicKey).CheckAsync(new Version(1,0),default);
+            check(found?.Version==release.Version&&manifestHandler.Requests==2,"signed manifest can be retrieved through proxy when official route fails");
             var file=await updater.DownloadAsync(release,root,null,default);
             check(File.ReadAllBytes(file).SequenceEqual(bytes),"verified update package stored without executing it");
+            var packageHandler=new FallbackHandler(bytes);using var packageClient=new HttpClient(packageHandler);
+            await new AppUpdater(packageClient,publicKey).DownloadAsync(release,root,null,default);
+            check(packageHandler.Requests==2,"installer fallback still verifies the signed digest");
             try{await updater.DownloadAsync(release with{Sha256=new string('0',64)},root,null,default);throw new Exception("wrong hash accepted");}
             catch(BunnyApiException){check(Directory.GetFiles(root,"*.part").Length==0&&File.ReadAllBytes(file).SequenceEqual(bytes),"invalid package hash removes partial and preserves valid cached installer");}
             using var canceled=new CancellationTokenSource();canceled.Cancel();
@@ -46,5 +52,13 @@ internal static class UpdateTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
         {ct.ThrowIfCancellationRequested();return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(bytes)});}
+    }
+    private sealed class FallbackHandler(byte[] bytes):HttpMessageHandler
+    {
+        public int Requests;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+        {
+            Requests++;ct.ThrowIfCancellationRequested();return Task.FromResult(new HttpResponseMessage(request.RequestUri!.Host=="github.com"?HttpStatusCode.ServiceUnavailable:HttpStatusCode.OK){Content=new ByteArrayContent(bytes)});
+        }
     }
 }

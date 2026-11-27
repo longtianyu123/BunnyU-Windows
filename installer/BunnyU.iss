@@ -44,7 +44,7 @@ Name: "{autodesktop}\兔U"; Filename: "{app}\BunnyU.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\BunnyU.exe"; Description: "启动兔U"; Flags: nowait postinstall skipifsilent; Check: not LaunchAfterUpdate
-Filename: "{app}\BunnyU.exe"; Flags: nowait; Check: LaunchAfterUpdate
+Filename: "{app}\BunnyU.exe"; Parameters: "{param:RUNPARAMS|}"; Flags: nowait; Check: LaunchAfterUpdate
 
 [Code]
 function LaunchAfterUpdate: Boolean;
