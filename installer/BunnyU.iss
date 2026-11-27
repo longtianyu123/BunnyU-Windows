@@ -1,12 +1,16 @@
 ﻿#ifndef AppVersion
-  #define AppVersion "0.11.5"
+  #define AppVersion "0.11.6"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\artifacts\winforms-x64-v" + AppVersion
 #endif
 
 [Setup]
+#ifdef Validation
+AppId={{7DF7C08B-3F00-4E12-B413-D9342537EC08}
+#else
 AppId={{FDE9CD1B-A289-41CA-A0C6-BC297C16983F}
+#endif
 AppName=兔U
 AppVersion={#AppVersion}
 AppPublisher=BunnyU Windows contributors
@@ -19,7 +23,11 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
 OutputDir=..\artifacts
+#ifdef Validation
+OutputBaseFilename=BunnyU-Validation-{#AppVersion}
+#else
 OutputBaseFilename=BunnyU-Setup-{#AppVersion}
+#endif
 Compression=lzma2/normal
 SolidCompression=yes
 WizardStyle=modern
@@ -36,6 +44,7 @@ Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："; Flags: unchecked
 
 [Files]
+Source: "..\artifacts\RuntimeDownloader.exe"; Flags: dontcopy
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Excludes: "settings.json,self-test*.json,*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -48,26 +57,28 @@ Filename: "{app}\BunnyU.exe"; Parameters: "{param:RUNPARAMS|}"; Flags: nowait; C
 
 [Code]
 var
-  RuntimeDownload: TDownloadWizardPage;
   RuntimeInstalled: Boolean;
 
 procedure InitializeWizard;
 begin
-  RuntimeDownload := CreateDownloadPage('下载运行环境', '正在下载 .NET 10 桌面运行时，请稍候。', nil);
-  RuntimeDownload.ShowBaseNameInsteadOfUrl := True;
   RuntimeInstalled := False;
 end;
 
 function HasDesktopRuntime: Boolean;
 var
   Versions: TArrayOfString;
-  I: Integer;
+  I, View: Integer;
 begin
   Result := False;
-  if RegGetValueNames(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Versions) then
+  for View := 0 to 1 do begin
+    if View = 0 then
+      RegGetValueNames(HKLM32, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Versions)
+    else
+      RegGetValueNames(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Versions);
     for I := 0 to GetArrayLength(Versions) - 1 do
-      if Pos('10.0.', Versions[I]) = 1 then
-        Result := True;
+      if Pos('10.0.', Versions[I]) = 1 then Result := True;
+    SetArrayLength(Versions, 0);
+  end;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -81,23 +92,20 @@ begin
     Result := '未安装运行环境，安装已暂停。再次点击安装可重试。';
     Exit;
   end;
-  RuntimeDownload.Clear;
-  RuntimeDownload.Add('https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.15/windowsdesktop-runtime-10.0.15-win-x64.exe', 'windowsdesktop-runtime.exe', 'e61b030c1673edfa3c0844502eff83198c46af9e7df70dfc6e2efc5b11ea513a');
-  RuntimeDownload.Show;
-  try
-    try
-      RuntimeDownload.Download;
-    except
-      if RuntimeDownload.AbortedByUser then
-        Result := '运行环境下载已取消。'
-      else
-        Result := '运行环境下载或校验失败：' + GetExceptionMessage;
-    end;
-  finally
-    RuntimeDownload.Hide;
-  end;
-  if Result <> '' then Exit;
   RuntimePath := ExpandConstant('{tmp}\windowsdesktop-runtime.exe');
+  ExtractTemporaryFile('RuntimeDownloader.exe');
+  if not Exec(ExpandConstant('{tmp}\RuntimeDownloader.exe'), '"' + RuntimePath + '"', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode) then begin
+    Result := '无法启动运行环境下载程序。';
+    Exit;
+  end;
+  if ExitCode <> 0 then begin
+    Result := '运行环境下载未完成或已取消，请重试。';
+    Exit;
+  end;
+  if CompareText(GetSHA256OfFile(RuntimePath), 'e61b030c1673edfa3c0844502eff83198c46af9e7df70dfc6e2efc5b11ea513a') <> 0 then begin
+    Result := '运行环境文件校验失败，已阻止安装。';
+    Exit;
+  end;
   if not ShellExec('runas', RuntimePath, '/install /quiet /norestart', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then begin
     Result := '未能启动运行环境安装。请允许 Windows 管理员权限提示后重试。';
     Exit;
