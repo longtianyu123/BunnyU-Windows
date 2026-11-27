@@ -1,0 +1,50 @@
+using System.Net;
+using System.Security.Cryptography;
+using System.Text.Json;
+using BunnyU.Core;
+
+internal static class UpdateTests
+{
+    public static async Task RunAsync(Action<bool,string> check)
+    {
+        var bytes=new byte[8192];bytes[0]=(byte)'M';bytes[1]=(byte)'Z';
+        var sha=Convert.ToHexString(SHA256.HashData(bytes));
+        using var signing=ECDsa.Create(ECCurve.NamedCurves.nistP256);var publicKey=Convert.ToBase64String(signing.ExportSubjectPublicKeyInfo());
+        var url="https://github.com/"+AppUpdater.Repository+"/releases/download/v9.0.0/BunnyU-Setup-9.0.0.exe";
+        string Manifest(string address,string digest)
+        {
+            var payload=System.Text.Encoding.UTF8.GetBytes(string.Join("\n","9.0.0",address,digest.ToLowerInvariant(),"test"));
+            var signature=Convert.ToBase64String(signing.SignData(payload,HashAlgorithmName.SHA256,DSASignatureFormat.IeeeP1363FixedFieldConcatenation));
+            return JsonSerializer.Serialize(new{version="9.0.0",installerUrl=address,sha256=digest,notes="test",signature});
+        }
+        var release=AppUpdater.ParseManifest(Manifest(url,sha),publicKey);
+        check(AppUpdater.IsNewer(release.Version,new(1,0,0))&&!AppUpdater.IsNewer(new(1,0,0),new(1,0,0,0)),"update version comparison rejects same version and downgrade");
+        foreach(var bad in new[]{url.Replace("https:","http:"),url.Replace(AppUpdater.Repository,"attacker/repo"),"file:///tmp/update.exe"})
+        {
+            try{AppUpdater.ParseManifest(Manifest(bad,sha),publicKey);throw new Exception("unsafe URL accepted");}
+            catch(BunnyApiException){check(true,"update executable restricted to HTTPS release URL in configured repository");}
+        }
+        try{AppUpdater.ParseManifest(Manifest(url,"abc"),publicKey);throw new Exception("bad hash accepted");}
+        catch(BunnyApiException){check(true,"update requires complete SHA-256 digest");}
+        try{AppUpdater.ParseManifest(Manifest(url,sha).Replace("test","tampered"),publicKey);throw new Exception("tampering accepted");}
+        catch(BunnyApiException){check(true,"modified proxy manifest fails signature verification");}
+        var root=Path.Combine(Path.GetTempPath(),"bunny-update-test-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var http=new HttpClient(new Handler(bytes));var updater=new AppUpdater(http,publicKey);
+            var file=await updater.DownloadAsync(release,root,null,default);
+            check(File.ReadAllBytes(file).SequenceEqual(bytes),"verified update package stored without executing it");
+            try{await updater.DownloadAsync(release with{Sha256=new string('0',64)},root,null,default);throw new Exception("wrong hash accepted");}
+            catch(BunnyApiException){check(Directory.GetFiles(root,"*.part").Length==0&&File.ReadAllBytes(file).SequenceEqual(bytes),"invalid package hash removes partial and preserves valid cached installer");}
+            using var canceled=new CancellationTokenSource();canceled.Cancel();
+            try{await updater.DownloadAsync(release,root,null,canceled.Token);throw new Exception("cancel ignored");}
+            catch(OperationCanceledException){check(Directory.GetFiles(root,"*.part").Length==0,"canceled update leaves no partial installer");}
+        }
+        finally{if(Directory.Exists(root))Directory.Delete(root,true);}
+    }
+    private sealed class Handler(byte[] bytes):HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken ct)
+        {ct.ThrowIfCancellationRequested();return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK){Content=new ByteArrayContent(bytes)});}
+    }
+}

@@ -1,0 +1,14 @@
+**/bin/
+**/obj/
+artifacts/
+.development/
+*.user
+*.suo
+*.log
+*.pem
+*.key
+settings.json
+downloads.json
+session.dat
+self-test*.json
+*.part
