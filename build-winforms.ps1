@@ -16,7 +16,7 @@ try {
  & $dotnet @arguments
  if($LASTEXITCODE -ne 0){throw 'Tests failed'}
  if($Publish){
-  & $dotnet publish 'BunnyU.WinForms\BunnyU.WinForms.csproj' -c Release -r win-x64 --self-contained true -o $publishDir
+  & $dotnet publish 'BunnyU.WinForms\BunnyU.WinForms.csproj' -c Release -r win-x64 --self-contained false -o $publishDir
   if($LASTEXITCODE -ne 0){throw 'Publish failed'}
   Copy-Item -LiteralPath 'README-WinForms.md','ACCESSIBILITY-WinForms.md','THIRD-PARTY-NOTICES.md' -Destination $publishDir
   Copy-Item -LiteralPath 'licenses' -Destination $publishDir -Recurse -Force
