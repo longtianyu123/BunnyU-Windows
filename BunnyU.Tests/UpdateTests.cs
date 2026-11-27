@@ -49,7 +49,7 @@ internal static class UpdateTests
             var largeRelease=AppUpdater.ParseManifest(Manifest(url,Convert.ToHexString(SHA256.HashData(large))),publicKey);
             var ranged=new RangeHandler(large);using var rangedHttp=new HttpClient(ranged);
             await new AppUpdater(rangedHttp,publicKey).DownloadAsync(largeRelease,root,null,default);
-            check(ranged.Peak==5&&File.ReadAllBytes(file).SequenceEqual(large),"update installer downloaded in five concurrent ranges and reconstructed exactly");
+            check(ranged.Peak==16&&File.ReadAllBytes(file).SequenceEqual(large),"update installer downloaded in sixteen concurrent ranges and reconstructed exactly");
             var unsupported=new RangeHandler(large){IgnoreSegments=true};using var fallbackHttp=new HttpClient(unsupported);
             await new AppUpdater(fallbackHttp,publicKey).DownloadAsync(largeRelease,root,null,default);
             check(unsupported.FullRequests==1&&File.ReadAllBytes(file).SequenceEqual(large),"range failure falls back to verified single-stream installer download");
@@ -76,7 +76,7 @@ internal static class UpdateTests
             if(range is null){FullRequests++;return new(HttpStatusCode.OK){Content=new ByteArrayContent(bytes)};}
             if(range.To!=0)
             {
-                var active=Interlocked.Increment(ref _active);Peak=Math.Max(Peak,active);if(active==5)Started.TrySetResult();
+                var active=Interlocked.Increment(ref _active);Peak=Math.Max(Peak,active);if(active==16)Started.TrySetResult();
                 try{if(Block)await Task.Delay(Timeout.Infinite,ct);else await Task.Delay(80,ct);}
                 finally{Interlocked.Decrement(ref _active);}
                 if(IgnoreSegments)return new(HttpStatusCode.OK){Content=new ByteArrayContent(bytes)};

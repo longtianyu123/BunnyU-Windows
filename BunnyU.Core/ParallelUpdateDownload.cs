@@ -9,11 +9,11 @@ internal static class ParallelUpdateDownload
     {
         using var cancel=CancellationTokenSource.CreateLinkedTokenSource(ct);
         await using var file=new FileStream(path,FileMode.CreateNew,FileAccess.ReadWrite,FileShare.ReadWrite,65536,FileOptions.Asynchronous|FileOptions.RandomAccess);
-        file.SetLength(length);var counts=new long[5];var gate=new object();var lastReport=Environment.TickCount64;
+        file.SetLength(length);var counts=new long[16];var gate=new object();var lastReport=Environment.TickCount64;
         async Task Segment(int index)
         {
             using var stall=CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);stall.CancelAfter(TimeSpan.FromSeconds(60));
-            long start=length*index/5,end=length*(index+1)/5-1,received=0;
+            long start=length*index/16,end=length*(index+1)/16-1,received=0;
             try
             {
                 using var request=new HttpRequestMessage(HttpMethod.Get,address);request.Headers.Range=new RangeHeaderValue(start,end);request.Headers.AcceptEncoding.ParseAdd("identity");
@@ -32,7 +32,7 @@ internal static class ParallelUpdateDownload
             }
             catch{cancel.Cancel();throw;}
         }
-        try{await Task.WhenAll(Enumerable.Range(0,5).Select(Segment));await file.FlushAsync(ct);progress?.Report(new(length,length));}
+        try{await Task.WhenAll(Enumerable.Range(0,16).Select(Segment));await file.FlushAsync(ct);progress?.Report(new(length,length));}
         catch{ct.ThrowIfCancellationRequested();throw new HttpRequestException("多线程更新下载未完成。");}
     }
 }
