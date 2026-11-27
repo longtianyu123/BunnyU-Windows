@@ -8,10 +8,11 @@ internal sealed class PreferencesForm:Form
     private readonly PlainListBox _categories=new(){AccessibleName="设置分类",TabIndex=0};
     private readonly Panel _pages=new(){Dock=DockStyle.Fill,TabStop=false,TabIndex=1};
     private readonly TableLayoutPanel _general=new(){Dock=DockStyle.Fill,ColumnCount=1,RowCount=6,Padding=new(12),TabStop=false,TabIndex=0,AutoScroll=true};
-    private readonly TableLayoutPanel _playback=new(){Dock=DockStyle.Fill,ColumnCount=1,RowCount=3,Padding=new(12),TabStop=false,TabIndex=0};
+    private readonly TableLayoutPanel _playback=new(){Dock=DockStyle.Fill,ColumnCount=1,RowCount=6,Padding=new(12),TabStop=false,TabIndex=0,AutoScroll=true};
     private readonly CheckBox _sound=new(){Text="下载完成后播放提示音",AccessibleName="下载完成后播放提示音",AutoSize=true,TabIndex=0};
     private readonly TextBox _directory=new(){ReadOnly=true,Dock=DockStyle.Fill,AccessibleName="下载保存位置",TabIndex=0};
     private readonly ComboBox _step=new(){DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Top,AccessibleName="音量调整百分比",TabIndex=0};
+    private readonly ComboBox _quality=new(){DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Top,AccessibleName="默认播放音质",TabIndex=1};
     private readonly ComboBox _concurrent=new(){DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Top,AccessibleName="同时下载任务数",TabIndex=1};
     private readonly Label _message=new(){AutoSize=true,TabStop=false,Dock=DockStyle.Fill};
     private readonly DownloadSettings _settings;
@@ -41,8 +42,14 @@ internal sealed class PreferencesForm:Form
         for(var i=1;i<=100;i++)_step.Items.Add(i+"%");
         _playback.Controls.Add(_step,0,1);
         _playback.Controls.Add(new Label{Text="Ctrl+↑ / Ctrl+↓ 每次增加或减少的音量。",AutoSize=true,TabStop=false},0,2);
+        for(var i=0;i<3;i++)_playback.RowStyles.Add(new(SizeType.AutoSize));
+        _quality.Items.AddRange(["默认（低到高）","高音质优先","最高音质（高到低）"]);
+        _playback.Controls.Add(new Label{Text="默认播放音质",AutoSize=true,TabStop=false,Margin=new(3,12,3,3)},0,3);
+        _playback.Controls.Add(_quality,0,4);
+        _playback.Controls.Add(new Label{Text="默认：普通→高音质→FLAC。最高：FLAC→高音质→普通。\n高音质优先：高音质→普通→FLAC。均以原始地址兜底。",AutoSize=true,TabStop=false},0,5);
         _pages.Controls.Add(_general);_pages.Controls.Add(_playback);
         var preferences=settings.LoadPreferences();_directory.Text=preferences.DownloadDirectory??"";_sound.Checked=preferences.DownloadCompleteSound;_step.SelectedIndex=preferences.VolumeStepPercent-1;
+        _quality.SelectedIndex=(int)preferences.PlaybackQuality;
         _concurrent.SelectedIndex=preferences.ConcurrentDownloads-1;
         _message.Text=settings.Error??"";layout.Controls.Add(_message,0,1);
         var buttons=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,TabStop=false,TabIndex=1};
@@ -72,7 +79,7 @@ internal sealed class PreferencesForm:Form
     {
         try
         {
-            _settings.SavePreferences(new(_directory.Text.Length==0?null:_directory.Text,_sound.Checked,_step.SelectedIndex+1,_concurrent.SelectedIndex+1,true));
+            _settings.SavePreferences(new(_directory.Text.Length==0?null:_directory.Text,_sound.Checked,_step.SelectedIndex+1,_concurrent.SelectedIndex+1,true,(PlaybackQuality)_quality.SelectedIndex));
             DialogResult=DialogResult.OK;Close();
         }
         catch(Exception ex){_message.Text=MainForm.Error(ex);_message.AccessibilityObject.RaiseAutomationNotification(AutomationNotificationKind.Other,AutomationNotificationProcessing.ImportantMostRecent,_message.Text);}

@@ -15,6 +15,7 @@ internal sealed class Player : IDisposable
     private bool _disposed,_trialEnded;
     private int _volume=50;
     public Chapter? Current{get;private set;}
+    public PlaybackQuality Quality{get;set;}
     public string Status{get;private set;}="尚未播放";
     public event Action? Changed;
     public double Position=>Math.Max(0,(_mediaPlayer?.Time??0)/1000d);
@@ -48,9 +49,11 @@ internal sealed class Player : IDisposable
     public void Play(Chapter chapter,IReadOnlyList<Chapter> queue)
     {
         if(chapter.IsLocked)throw new BunnyApiException("此章节需要购买或会员权限。");
-        if(!MediaAddress.IsHttp(chapter.MediaUrl))throw new BunnyApiException("此章节没有可用的播放地址。");
+        var address=chapter.Playback?.Select(Quality);
+        if(!MediaAddress.IsHttp(address))address=chapter.MediaUrl;
+        if(!MediaAddress.IsHttp(address))throw new BunnyApiException("此章节没有可用的播放地址。");
         Initialize();_mediaPlayer!.Stop();Current=chapter;_queue=queue.ToList();_trialEnded=false;
-        using var media=new Media(_vlc!,new Uri(chapter.MediaUrl));media.AddOption(":network-caching=1500");
+        using var media=new Media(_vlc!,new Uri(address!));media.AddOption(":network-caching=1500");
         if(chapter.PlaybackLimit is {} cap)media.AddOption(":stop-time="+cap.ToString(CultureInfo.InvariantCulture));
         SetStatus("正在缓冲");if(!_mediaPlayer.Play(media))throw new BunnyApiException("无法开始播放。");
     }

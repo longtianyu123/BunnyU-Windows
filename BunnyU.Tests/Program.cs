@@ -136,6 +136,7 @@ await DownloadTests.RunAsync(Check);
 DownloadHistoryTests.Run(Check);
 DownloadSettingsTests.Run(Check);
 await UpdateTests.RunAsync(Check);
+PlaybackQualityTests.Run(Check);
 Console.WriteLine($"ALL PASSED: {passed}");
 
 sealed class Recorder:HttpMessageHandler

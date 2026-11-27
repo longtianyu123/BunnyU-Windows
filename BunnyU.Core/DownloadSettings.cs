@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace BunnyU.Core;
 
-public sealed record UserPreferences(string? DownloadDirectory=null,bool DownloadCompleteSound=false,int VolumeStepPercent=5,int ConcurrentDownloads=1,bool AutoCheckUpdates=true);
+public sealed record UserPreferences(string? DownloadDirectory=null,bool DownloadCompleteSound=false,int VolumeStepPercent=5,int ConcurrentDownloads=1,bool AutoCheckUpdates=true,PlaybackQuality PlaybackQuality=PlaybackQuality.Default);
 
 public sealed class DownloadSettings(string filePath)
 {
@@ -21,7 +21,8 @@ public sealed class DownloadSettings(string filePath)
             var step=root["volumeStepPercent"] is JsonValue stepValue&&stepValue.TryGetValue<int>(out var number)&&number is >=1 and <=100?number:5;
             var concurrent=root["concurrentDownloads"] is JsonValue countValue&&countValue.TryGetValue<int>(out var count)&&count is >=1 and <=5?count:1;
             var autoUpdates=!(root["autoCheckUpdates"] is JsonValue autoValue&&autoValue.TryGetValue<bool>(out var check)&&!check);
-            return new(directory,sound,step,concurrent,autoUpdates);
+            var quality=root["playbackQuality"] is JsonValue q&&q.TryGetValue<int>(out var index)&&Enum.IsDefined(typeof(PlaybackQuality),index)?(PlaybackQuality)index:PlaybackQuality.Default;
+            return new(directory,sound,step,concurrent,autoUpdates,quality);
         }
         catch(Exception ex)when(ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException or ArgumentException)
         {Error="无法读取软件目录中的 settings.json，请检查配置文件。";return new();}
@@ -36,6 +37,7 @@ public sealed class DownloadSettings(string filePath)
     {
         if(preferences.VolumeStepPercent is <1 or >100)throw new BunnyApiException("音量调整幅度应为 1% 到 100%。");
         if(preferences.ConcurrentDownloads is <1 or >5)throw new BunnyApiException("同时下载任务数应为 1 到 5 个。");
+        if(!Enum.IsDefined(preferences.PlaybackQuality))throw new BunnyApiException("播放音质设置无效。");
         var directory=preferences.DownloadDirectory;
         if(!string.IsNullOrWhiteSpace(directory)&&(!Path.IsPathFullyQualified(directory)||!Directory.Exists(directory)))throw new BunnyApiException("请选择存在的保存文件夹。");
         Write(root=>
@@ -45,6 +47,7 @@ public sealed class DownloadSettings(string filePath)
             root["volumeStepPercent"]=preferences.VolumeStepPercent;
             root["concurrentDownloads"]=preferences.ConcurrentDownloads;
             root["autoCheckUpdates"]=preferences.AutoCheckUpdates;
+            root["playbackQuality"]=(int)preferences.PlaybackQuality;
         });
     }
     private void Write(Action<JsonObject> update)

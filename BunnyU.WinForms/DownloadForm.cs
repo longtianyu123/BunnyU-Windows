@@ -11,6 +11,9 @@ internal sealed class DownloadForm:Form
         public override string ToString(){var reason=ChapterDownloader.UnavailableReason(Chapter);return Chapter.Name+(reason.Length>0?"（"+reason+"）":"");}
     }
     private readonly CheckedListBox _chapters=new(){Dock=DockStyle.Fill,AccessibleName="下载章节",TabIndex=0,CheckOnClick=false,IntegralHeight=false};
+    private readonly ComboBox _quality=new(){DropDownStyle=ComboBoxStyle.DropDownList,Dock=DockStyle.Fill,AccessibleName="下载音质",TabIndex=1};
+    private DownloadQuality SelectedQuality=>(DownloadQuality)Math.Max(0,_quality.SelectedIndex);
+    private Chapter WithQuality(Chapter chapter)=>chapter.DownloadSources is {} sources?chapter with{DownloadUrl=sources.SelectDownload(SelectedQuality)}:chapter;
     private string _directory="";
     private readonly Label _message=new(){AutoSize=true,Dock=DockStyle.Fill,TabStop=false,Text="正在加载章节…"};
     private readonly Button _all=new(){Text="全选",AutoSize=true,TabIndex=0};
@@ -35,22 +38,27 @@ internal sealed class DownloadForm:Form
         Text=(single is null?"选择下载章节 - ":"下载 - ")+album.Name;
         Font=new Font("Microsoft YaHei UI",10);AutoScaleMode=AutoScaleMode.Dpi;StartPosition=FormStartPosition.CenterParent;
         ClientSize=new(670,410);MinimumSize=new(500,340);
-        var layout=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new(12),ColumnCount=1,RowCount=4,TabStop=false};
+        var layout=new TableLayoutPanel{Dock=DockStyle.Fill,Padding=new(12),ColumnCount=1,RowCount=5,TabStop=false};
         layout.RowStyles.Add(new(SizeType.AutoSize));layout.RowStyles.Add(new(SizeType.Percent,100));
         layout.RowStyles.Add(new(SizeType.AutoSize));layout.RowStyles.Add(new(SizeType.AutoSize));
         layout.Controls.Add(new Label{Text="章节（空格勾选）",AutoSize=true,TabStop=false},0,0);layout.Controls.Add(_chapters,0,1);
-        layout.Controls.Add(_message,0,2);
-        var buttons=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,TabStop=false,TabIndex=1};buttons.Controls.AddRange([_all,_none,_start,_close]);layout.Controls.Add(buttons,0,3);
+        layout.RowStyles.Add(new(SizeType.AutoSize));
+        var qualityRow=new TableLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,ColumnCount=2,TabStop=false,TabIndex=1};qualityRow.ColumnStyles.Add(new(SizeType.AutoSize));qualityRow.ColumnStyles.Add(new(SizeType.Percent,100));
+        qualityRow.Controls.Add(new Label{Text="下载音质",AutoSize=true,TabStop=false},0,0);qualityRow.Controls.Add(_quality,1,0);layout.Controls.Add(qualityRow,0,2);
+        _quality.Items.AddRange(["最高音质（FLAC 优先）","高音质 MP3","普通 MP3"]);_quality.SelectedIndex=0;
+        layout.Controls.Add(_message,0,3);
+        var buttons=new FlowLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,TabStop=false,TabIndex=2};buttons.Controls.AddRange([_all,_none,_start,_close]);layout.Controls.Add(buttons,0,4);
         Controls.Add(layout);CancelButton=_close;
         _directory=_settings.LoadDirectory()??"";
-        _chapters.ItemCheck+=(_,e)=>{if(e.NewValue==CheckState.Checked&&ChapterDownloader.UnavailableReason(((Entry)_chapters.Items[e.Index]).Chapter).Length>0)e.NewValue=CheckState.Unchecked;};
+        _chapters.ItemCheck+=(_,e)=>{if(e.NewValue==CheckState.Checked&&ChapterDownloader.UnavailableReason(WithQuality(((Entry)_chapters.Items[e.Index]).Chapter)).Length>0)e.NewValue=CheckState.Unchecked;};
+        _quality.SelectedIndexChanged+=(_,_)=>{for(var i=0;i<_chapters.Items.Count;i++)if(_chapters.GetItemChecked(i)&&ChapterDownloader.UnavailableReason(WithQuality(((Entry)_chapters.Items[i]).Chapter)).Length>0)_chapters.SetItemChecked(i,false);};
         _all.Click+=(_,_)=>SelectAll(true);_none.Click+=(_,_)=>SelectAll(false);
         _start.Click+=async(_,_)=>{if(!_loaded)await LoadAsync();else Submit();};
         Shown+=async(_,_)=>await LoadAsync();Deactivate+=(_,_)=>_interaction++;
         FormClosed+=(_,_)=>{_life.Cancel();if(!_loading)_life.Dispose();};
     }
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData){_interaction++;return base.ProcessCmdKey(ref msg,keyData);}
-    private void SelectAll(bool selected){for(var i=0;i<_chapters.Items.Count;i++)_chapters.SetItemChecked(i,selected&&ChapterDownloader.UnavailableReason(((Entry)_chapters.Items[i]).Chapter).Length==0);}
+    private void SelectAll(bool selected){for(var i=0;i<_chapters.Items.Count;i++)_chapters.SetItemChecked(i,selected&&ChapterDownloader.UnavailableReason(WithQuality(((Entry)_chapters.Items[i]).Chapter)).Length==0);}
     private void Report(string text)
     {
         if(IsDisposed)return;_message.Text=text;
@@ -79,7 +87,7 @@ internal sealed class DownloadForm:Form
     }
     private void Submit()
     {
-        var items=_chapters.CheckedItems.Cast<Entry>().Select(e=>e.Chapter).ToArray();
+        var items=_chapters.CheckedItems.Cast<Entry>().Select(e=>WithQuality(e.Chapter)).ToArray();
         if(items.Length==0){Report("请先勾选可下载的章节。");_chapters.Focus();return;}
         try
         {

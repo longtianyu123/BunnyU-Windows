@@ -97,7 +97,7 @@ internal sealed class MainForm : Form
         };
         Text=_session is null?"兔U":"兔U - "+_session.DisplayName;Name="BunnyUMain";Font=new Font("Microsoft YaHei UI",10);AutoScaleMode=AutoScaleMode.Dpi;
         ClientSize=new Size(930,620);MinimumSize=new Size(680,460);StartPosition=FormStartPosition.CenterScreen;
-        _player=new Player(this,args.Contains("--self-test"));_player.Changed+=UpdatePlayback;
+        _player=new Player(this,args.Contains("--self-test")){Quality=_preferences.PlaybackQuality};_player.Changed+=UpdatePlayback;
         _root=new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=4,Padding=new Padding(10),TabStop=false};
         _root.RowStyles.Add(new(SizeType.AutoSize));_root.RowStyles.Add(new(SizeType.AutoSize));_root.RowStyles.Add(new(SizeType.Percent,100));_root.RowStyles.Add(new(SizeType.Absolute,0));
         var searchRow=new TableLayoutPanel{Dock=DockStyle.Fill,AutoSize=true,ColumnCount=2,TabStop=false,TabIndex=0};
@@ -160,7 +160,7 @@ internal sealed class MainForm : Form
     {
         var returnToResources=_resources.ContainsFocus;
         using var dialog=new PreferencesForm(_settings);
-        if(dialog.ShowDialog(this)==DialogResult.OK){_preferences=_settings.LoadPreferences();_downloads.SetConcurrency(_preferences.ConcurrentDownloads);Announce("首选项已保存。");}
+        if(dialog.ShowDialog(this)==DialogResult.OK){_preferences=_settings.LoadPreferences();_downloads.SetConcurrency(_preferences.ConcurrentDownloads);_player.Quality=_preferences.PlaybackQuality;Announce("首选项已保存。");}
         if(returnToResources)FocusResources();else _query.Focus();
     }
     private void ShowDownloadMenu(Point point)

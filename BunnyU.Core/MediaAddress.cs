@@ -9,6 +9,26 @@ public static class MediaAddress
     // App protocol: Base64(16-byte IV + AES-256-CBC/PKCS7 payload), UTF-8 key.
     // This resolves addresses supplied by the API; access/trial checks remain separate.
     private const string ProtocolKey = "7F7BA3C95B3689637B69183F8E6AC147";
+    public static PlaybackAddresses ResolvePlayback(JsonElement chapter,JsonElement sound,bool download=false)
+    {
+        var sources=new List<JsonElement>{chapter,sound};JsonDocument? decoded=null;
+        var original="";
+        try
+        {
+            var payload=ResponseParser.Text(sound,"urlBody");
+            if(payload.Length>0)
+                try{var plain=DecodePayload(payload);if(IsHttp(plain))original=plain;else{decoded=JsonDocument.Parse(plain);sources.Add(decoded.RootElement);}}
+                catch(Exception ex)when(ex is FormatException or CryptographicException or JsonException or DecoderFallbackException){}
+            string Find(params string[] keys)
+            {
+                foreach(var source in sources)foreach(var key in keys){var url=ResponseParser.Text(source,key);if(download?IsDirectAudio(url):IsHttp(url))return url;}
+                return "";
+            }
+            var direct=Find("url");
+            return new(download?Find("url_mp3_normal"):Find("url_m3u8_normal","url_mp3_normal"),Find("url_mp3_higher"),Find("url_flac"),direct.Length>0?direct:original);
+        }
+        finally{decoded?.Dispose();}
+    }
     public static string ResolveDownload(JsonElement chapter,JsonElement sound)
     {
         foreach(var source in new[]{chapter,sound})

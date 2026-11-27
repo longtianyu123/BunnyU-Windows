@@ -118,7 +118,7 @@ public static class ResponseParser
                 var duration = Number(sound, "duration");
                 if (duration > 0) trial = Math.Min(trial, duration);
                 result.Add(new Chapter(id, Text(sound, "full_name", "fullName", "name"), Text(sound, "cover"), duration,
-                    MediaAddress.Resolve(item, sound), restricted, unlocked, Math.Max(0, trial),MediaAddress.ResolveDownload(item,sound)));
+                    MediaAddress.Resolve(item, sound), restricted, unlocked, Math.Max(0, trial),MediaAddress.ResolveDownload(item,sound),MediaAddress.ResolvePlayback(item,sound),MediaAddress.ResolvePlayback(item,sound,true)));
             }
         }
         return new ChapterPage(result, requestedPage, data.ValueKind == JsonValueKind.Object ? (int)Number(data, "total") : result.Count);

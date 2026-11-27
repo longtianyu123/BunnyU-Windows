@@ -18,7 +18,7 @@ public sealed record RecommendationSection(string Name,string Description,IReadO
 public sealed record AlbumCategory(string Id,string Name);
 
 public sealed record Chapter(long Id, string Name, string Cover, double DurationSeconds,
-    string MediaUrl, bool RequiresEntitlement, bool ExplicitlyUnlocked, double TrialSeconds, string? DownloadUrl = null)
+    string MediaUrl, bool RequiresEntitlement, bool ExplicitlyUnlocked, double TrialSeconds, string? DownloadUrl = null, PlaybackAddresses? Playback = null, PlaybackAddresses? DownloadSources = null)
 {
     public bool IsTrial => RequiresEntitlement && !ExplicitlyUnlocked && TrialSeconds > 0;
     public bool IsLocked => RequiresEntitlement && !ExplicitlyUnlocked && TrialSeconds <= 0;
