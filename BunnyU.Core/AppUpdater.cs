@@ -79,7 +79,30 @@ public sealed class AppUpdater(HttpClient http,string? trustedKey=null)
         using var stall=CancellationTokenSource.CreateLinkedTokenSource(ct);stall.CancelAfter(TimeSpan.FromSeconds(60));
         try
         {
-            using var response=await http.GetAsync(address,HttpCompletionOption.ResponseHeadersRead,stall.Token);
+            using var probe=new HttpRequestMessage(HttpMethod.Get,address);probe.Headers.Range=new System.Net.Http.Headers.RangeHeaderValue(0,0);probe.Headers.AcceptEncoding.ParseAdd("identity");
+            using var initial=await http.SendAsync(probe,HttpCompletionOption.ResponseHeadersRead,stall.Token);
+            if(!initial.IsSuccessStatusCode&&initial.StatusCode!=System.Net.HttpStatusCode.RequestedRangeNotSatisfiable)throw new BunnyApiException("安装包下载失败，请稍后重试。");
+            var range=initial.Content.Headers.ContentRange;
+            if(initial.StatusCode==System.Net.HttpStatusCode.PartialContent&&range?.From==0&&range.To==0&&range.Length is >=1048576 and <=536870912)
+            {
+                var size=range.Length.Value;initial.Dispose();
+                try
+                {
+                    await ParallelUpdateDownload.DownloadAsync(http,address,part,size,progress,ct);
+                    await using(var verified=new FileStream(part,FileMode.Open,FileAccess.Read,FileShare.Read,65536,true))
+                    {
+                        var header=new byte[2];await verified.ReadExactlyAsync(header,ct);verified.Position=0;
+                        var digest=await SHA256.HashDataAsync(verified,ct);
+                        if(header[0]!='M'||header[1]!='Z'||!Convert.ToHexString(digest).Equals(release.Sha256,StringComparison.OrdinalIgnoreCase))throw new BunnyApiException("安装包校验失败，已取消安装。");
+                    }
+                    ct.ThrowIfCancellationRequested();File.Move(part,target,true);return target;
+                }
+                catch(HttpRequestException){if(File.Exists(part))File.Delete(part);progress?.Report(new(0,size));}
+            }
+            // A server that ignores Range already returned the whole file. Reuse it.
+            // Otherwise retry a standard GET when range transfer is unsupported.
+            stall.CancelAfter(TimeSpan.FromSeconds(60));
+            using var response=initial.StatusCode==System.Net.HttpStatusCode.OK?initial:await http.GetAsync(address,HttpCompletionOption.ResponseHeadersRead,stall.Token);
             if(!response.IsSuccessStatusCode)throw new BunnyApiException("安装包下载失败，请稍后重试。");
             var length=response.Content.Headers.ContentLength;if(length>512L*1024*1024)throw new BunnyApiException("安装包大小异常。");
             await using var source=await response.Content.ReadAsStreamAsync(stall.Token);
