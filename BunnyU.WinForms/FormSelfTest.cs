@@ -19,6 +19,17 @@ internal static class FormSelfTest
             IEnumerable<Control> Descendants(Control root)
             {foreach(Control child in root.Controls){yield return child;foreach(var nested in Descendants(child))yield return nested;}}
             Check(!Descendants(form).Any(c=>c is Button),"main window contains no buttons");
+            var instanceName="test-"+Guid.NewGuid().ToString("N");
+            using(var primary=new SingleInstance(instanceName))
+            {
+                Check(primary.IsPrimary,"first instance owns named lock");
+                var rejected=false;Exception? failure=null;
+                var duplicate=new Thread(()=>{try{using var second=new SingleInstance(instanceName);rejected=!second.IsPrimary;second.SignalExisting();}catch(Exception ex){failure=ex;}});
+                duplicate.Start();Check(duplicate.Join(3000)&&failure is null&&rejected,"second launch cannot own instance lock and signals existing instance");
+                using var activated=new ManualResetEventSlim();primary.Listen(()=>activated.Set());
+                Check(activated.Wait(3000),"activation request survives startup before listener is attached");
+            }
+            using(var replacement=new SingleInstance(instanceName))Check(replacement.IsPrimary,"instance lock released on application exit");
             Check(form.TestResources is ListBox&&!form.TestResources.MultiColumn,"resource control is a plain single-column list box");
             using(var paging=new MainForm(["--self-test"],new PagingTestApi()))await paging.TestAutoPagingAsync(Check);
             form.TestVolumePreference(Check);
