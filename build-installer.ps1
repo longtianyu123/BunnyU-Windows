@@ -5,10 +5,6 @@ if(-not $SkipPublish){& (Join-Path $PSScriptRoot 'build-winforms.ps1') -Publish}
 if(-not $Compiler){$Compiler=Join-Path (Split-Path $PSScriptRoot -Parent) 'tools\inno\ISCC.exe'}
 if(-not(Test-Path -LiteralPath $Compiler)){$Compiler=(Get-Command ISCC.exe -ErrorAction Stop).Source}
 $publish=Join-Path $PSScriptRoot "artifacts\winforms-x64-v$version"
-$helper=Join-Path $PSScriptRoot 'artifacts\RuntimeDownloader.exe'
-$csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-& $csc /nologo /target:winexe /platform:x64 /reference:System.Net.Http.dll /reference:System.Windows.Forms.dll /reference:System.Drawing.dll "/out:$helper" (Join-Path $PSScriptRoot 'installer\RuntimeDownloader.cs')
-if($LASTEXITCODE -ne 0){throw 'Runtime downloader build failed'}
 & $Compiler "/DAppVersion=$version" "/DPublishDir=$publish" (Join-Path $PSScriptRoot 'installer\BunnyU.iss')
 if($LASTEXITCODE -ne 0){throw 'Installer compilation failed'}
 $installer=Join-Path $PSScriptRoot "artifacts\BunnyU-Setup-$version.exe"

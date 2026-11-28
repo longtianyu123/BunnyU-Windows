@@ -1,5 +1,5 @@
 ﻿#ifndef AppVersion
-  #define AppVersion "0.11.6"
+#define AppVersion "0.11.7"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\artifacts\winforms-x64-v" + AppVersion
@@ -44,7 +44,7 @@ Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："; Flags: unchecked
 
 [Files]
-Source: "..\artifacts\RuntimeDownloader.exe"; Flags: dontcopy
+Source: "..\..\tools\windowsdesktop-runtime-10.0.15-win-x64.exe"; DestName: "windowsdesktop-runtime.exe"; Flags: dontcopy
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Excludes: "settings.json,self-test*.json,*.pdb"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
@@ -93,15 +93,7 @@ begin
     Exit;
   end;
   RuntimePath := ExpandConstant('{tmp}\windowsdesktop-runtime.exe');
-  ExtractTemporaryFile('RuntimeDownloader.exe');
-  if not Exec(ExpandConstant('{tmp}\RuntimeDownloader.exe'), '"' + RuntimePath + '"', '', SW_SHOWNORMAL, ewWaitUntilTerminated, ExitCode) then begin
-    Result := '无法启动运行环境下载程序。';
-    Exit;
-  end;
-  if ExitCode <> 0 then begin
-    Result := '运行环境下载未完成或已取消，请重试。';
-    Exit;
-  end;
+  ExtractTemporaryFile('windowsdesktop-runtime.exe');
   if CompareText(GetSHA256OfFile(RuntimePath), 'e61b030c1673edfa3c0844502eff83198c46af9e7df70dfc6e2efc5b11ea513a') <> 0 then begin
     Result := '运行环境文件校验失败，已阻止安装。';
     Exit;
