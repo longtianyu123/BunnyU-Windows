@@ -200,6 +200,7 @@ internal sealed class MainForm : Form
     protected override bool ProcessCmdKey(ref Message msg,Keys keyData)
     {
         _interaction++;
+        if(keyData==(Keys.Control|Keys.P)){ShowPreferences();return true;}
         if(keyData==(Keys.Control|Keys.J)){ShowDownloadManager();return true;}
         if(keyData==Keys.F5){_=RefreshCurrentAsync();return true;}
         if(keyData==(Keys.Control|Keys.PageDown)){_=MoreAsync();return true;}

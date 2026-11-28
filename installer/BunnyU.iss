@@ -1,5 +1,5 @@
 ﻿#ifndef AppVersion
-#define AppVersion "0.11.7"
+#define AppVersion "0.11.8"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\artifacts\winforms-x64-v" + AppVersion
